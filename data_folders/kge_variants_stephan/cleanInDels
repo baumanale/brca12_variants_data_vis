@@ -1,0 +1,75 @@
+
+df=pd.read_excel('2020-05-14-Genes_for_germline_evaluation_hereditary_cancer_general.xlsx', sheet_name='Gepado')
+df_pat=df[df['Bewertung gesamt'].str.contains('pathogen')].copy()
+df_pat.index=range(0,len(df_pat.index))
+with open('test.vcf','w') as outputFile:
+    with open("template.vcf")as t:
+        vcf_reader=vcf.Reader(t)
+        vcf_reader.infos["Bewertung"] = VcfInfo('Bewertung', 'R', 'String','Bewertung von KGE', None, None)
+        vcf_reader.infos["GENEINFO"] = VcfInfo('GENEINFO', 'R', 'String','Gene', None, None)
+        writer1=vcf.Writer(outputFile,vcf_reader)
+        for aa in df_pat.index:
+
+
+            if df_pat.iloc[aa,:]['REF'] == '-':
+                pos=int(str(df_pat.iloc[aa,:]['POS']).replace('-','^').split('^')[0])
+                with open('/mnt/g27prist/CMTD/Stephan/bcbio_installation/genomes/Hsapiens/GRCh37/seq/GRCh37.fa') as t:
+
+                    for record in SeqIO.parse(t, 'fasta'):
+                        if record.id==str(df_pat.iloc[aa,:]['Chr']):
+                            ref=record.seq[(pos-1)]
+                            break
+                alt=ref+df_pat.iloc[aa,:]['ALT']
+                a=vcf.model._Record(df_pat.iloc[aa,:]['Chr'],
+                                pos,
+                                None,
+                                ref,
+                                [vcf.model._Substitution(alt)],
+                                None,
+                                [],
+                                {'Bewertung':df_pat.at[aa,'Bewertung gesamt'],'GENEINFO':df_pat.at[aa,'Gen']},
+                                None,
+                                None,
+                                None)
+
+
+
+            if df_pat.iloc[aa,:]['ALT'] == '-':
+                pos=int(str(df_pat.iloc[aa,:]['POS']).replace('-','..').split('..')[0])
+
+                with open('/mnt/g27prist/CMTD/Stephan/bcbio_installation/genomes/Hsapiens/GRCh37/seq/GRCh37.fa') as t:
+                    for record in SeqIO.parse(t, 'fasta'):
+                        if record.id==str(df_pat.iloc[aa,:]['Chr']):
+                            ref=record.seq[(pos-2):(pos-2 + len(df_pat.iloc[aa,:]['REF']) + 1)]
+                            alt=record.seq[(pos-2)]
+                            break
+                a=vcf.model._Record(df_pat.iloc[aa,:]['Chr'],
+                                (pos-1),
+                                None,
+                                ref,
+                                [vcf.model._Substitution(alt)],
+                                None,
+                                [],
+                                {'Bewertung':df_pat.at[aa,'Bewertung gesamt'],'GENEINFO':df_pat.at[aa,'Gen']},
+                                None,
+                                None,
+                                None)
+
+
+
+            if df_pat.iloc[aa,:]['REF'] != '-' and df_pat.iloc[aa,:]['ALT'] != '-':
+                try:
+                    a=vcf.model._Record(df_pat.iloc[aa,:]['Chr'],
+                                df_pat.iloc[aa,:]['POS'],
+                                None,
+                                df_pat.iloc[aa,:]['REF'],
+                                [vcf.model._Substitution(df_pat.iloc[aa,:]['ALT'])],
+                                None,
+                                [],
+                                {'Bewertung':df_pat.at[aa,'Bewertung gesamt'],'GENEINFO':df_pat.at[aa,'Gen']},
+                                None,
+                                None,
+                                None)
+                except:
+                    continue
+            writer1.write_record(a)
